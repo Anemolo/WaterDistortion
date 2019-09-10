@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { lerp } from "./utils";
 
-const ImageURL = require("./static/image-1.jpg");
+const Image1URL = require("./static/image-1.jpg");
+const Image2URL = require("./static/image-2.jpg");
+const Image3URL = require("./static/image-3.jpg");
+const images = [Image1URL, Image2URL, Image3URL];
 export class Planes {
   constructor(sceneManager) {
     this.sceneManager = sceneManager;
@@ -33,14 +36,15 @@ export class Planes {
 
     let space = planeMetrics.space;
     for (let i = 0; i < 3; i++) {
+      const texture = this.images[i];
       const material = new THREE.ShaderMaterial({
         uniforms: {
           uZoom: new THREE.Uniform(0),
           uZoomDelta: new THREE.Uniform(0.2),
           uPlaneSize: this.uniforms.uPlaneSize,
-          uImage: new THREE.Uniform(this.image),
+          uImage: new THREE.Uniform(texture),
           uImageSize: new THREE.Uniform(
-            new THREE.Vector2(this.image.image.width, this.image.image.height)
+            new THREE.Vector2(texture.image.width, texture.image.height)
           ),
           uMouse: new THREE.Uniform(new THREE.Vector2(0, 0))
         },
@@ -83,13 +87,16 @@ export class Planes {
     }
   }
   load(loader) {
-    loader.begin("image");
-    var textureLoader = new THREE.TextureLoader();
-    textureLoader.crossOrigin = "";
-    textureLoader.load(ImageURL, image => {
-      this.image = image;
-      loader.end("image");
-    });
+    for (let i = 0; i < 3; i++) {
+      loader.begin("image" + i);
+      this.images = [];
+      var textureLoader = new THREE.TextureLoader();
+      textureLoader.crossOrigin = "";
+      textureLoader.load(images[i], image => {
+        this.images[i] = image;
+        loader.end("image" + i);
+      });
+    }
   }
   getPlaneMetrics(width, height) {
     const planeWidth = width / 4.5;
