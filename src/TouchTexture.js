@@ -10,9 +10,18 @@ const easeInSine = (t, b, c, d) => {
 
 export default class TouchTexture {
   constructor(parent) {
-    this.size = 64 * 2 * 2 * 2;
+    this.size = 64 * 2 * 2 * 2 * 2;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.width = this.height = this.size;
+
     this.maxAge = 64;
-    this.radius = 0.15;
+    this.radius = 0.15 * this.size;
+    // this.radius = 0.15 * 1000;
+
+    this.speed = 1 / this.maxAge;
+    // this.speed = 0.01;
+
     this.trail = [];
     this.last = null;
 
@@ -21,25 +30,26 @@ export default class TouchTexture {
 
   initTexture() {
     this.canvas = document.createElement("canvas");
-    this.canvas = new OffscreenCanvas(this.size, this.size);
-    this.canvas.width = this.canvas.height = this.size;
+    this.canvas = new OffscreenCanvas(this.width, this.height);
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
     this.ctx = this.canvas.getContext("2d");
     this.ctx.fillStyle = "black";
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.texture = new THREE.Texture(this.canvas);
     this.canvas.id = "touchTexture";
-    this.texture.magFilter = THREE.LinearFilter;
-    this.texture.minFilter = THREE.NearestFilter;
     // this.canvas.style.width = this.canvas.style.height = `${
     //   this.canvas.width
     // }px`;
   }
   update(delta) {
     this.clear();
-    let part = 1 / this.maxAge;
+    let speed = this.speed;
     this.trail.forEach((point, i) => {
-      let f = point.force * part * (1 - point.age / this.maxAge);
+      let f = point.force * speed * (1 - point.age / this.maxAge);
+      let x = point.x;
+      let y = point.y;
 
       point.x += point.vx * f;
       point.y += point.vy * f;
@@ -61,18 +71,6 @@ export default class TouchTexture {
     // this.test();
     this.texture.needsUpdate = true;
   }
-  test() {
-    this.ctx.beginPath();
-    this.ctx.fillStyle = "rgba(150,255,255,1.0)";
-    this.ctx.arc(
-      0.5 * this.size,
-      0.5 * this.size,
-      0.15 * this.size,
-      0,
-      Math.PI * 2
-    );
-    this.ctx.fill();
-  }
   clear() {
     this.ctx.fillStyle = "black";
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -85,6 +83,7 @@ export default class TouchTexture {
     if (last) {
       const dx = point.x - last.x;
       const dy = point.y - last.y;
+      if (dx === 0 && dy === 0) return;
       const dd = dx * dx + dy * dy;
       let d = Math.sqrt(dd);
       vx = dx / d;
@@ -125,8 +124,8 @@ export default class TouchTexture {
   }
   drawPoint(point) {
     const pos = {
-      x: point.x * this.size,
-      y: (1 - point.y) * this.size
+      x: point.x * this.width,
+      y: (1 - point.y) * this.height
     };
 
     let intensity = 1;
@@ -157,12 +156,12 @@ export default class TouchTexture {
         1
       );
     }
-    // intensity = easeInSine( 1.- point.age / this.maxAge,0,1,1)
+    // intensity = easeOutSine(1 - point.age / this.maxAge, 0, 1, 1);
     // intensity = 1 - point.age / this.maxAge;
     let i = intensity;
     intensity *= point.force;
 
-    const radius = this.size * this.radius;
+    const radius = this.radius;
     const grd = this.ctx.createRadialGradient(
       pos.x,
       pos.y,

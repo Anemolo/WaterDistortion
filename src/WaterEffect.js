@@ -3,10 +3,10 @@ import { Effect } from "postprocessing";
 
 export class WaterEffect extends Effect {
   constructor(options = {}) {
-    console.log(options);
     super("WaterEffect", fragment, {
       uniforms: new Map([["uTexture", new THREE.Uniform(options.texture)]])
     });
+    console.log(this);
   }
 }
 export default WaterEffect;

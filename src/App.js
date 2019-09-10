@@ -1,9 +1,10 @@
 import "./styles.css";
 import * as THREE from "three";
-import { loadTextAssets, createTextMaterial } from "./Text";
+import { loadTextAssets, createTextMaterial, Text } from "./Text";
 import TouchTexture from "./TouchTexture";
 import { EffectComposer, RenderPass, EffectPass } from "postprocessing";
 import { WaterEffect } from "./WaterEffect";
+import { Planes } from "./Planes";
 global.THREE = THREE;
 const createGeometry = require("three-bmfont-text");
 
@@ -33,6 +34,7 @@ export class App {
     this.camera.position.z = 50;
     this.disposed = false;
     this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x161624);
 
     this.clock = new THREE.Clock();
 
@@ -41,6 +43,9 @@ export class App {
     this.hitObjects = [];
 
     this.touchTexture = new TouchTexture();
+
+    this.subjects = [new Planes(this), new Text(this)];
+    // this.subjects = [];
 
     this.tick = this.tick.bind(this);
     this.onResize = this.onResize.bind(this);
@@ -55,7 +60,9 @@ export class App {
     const loader = this.loader;
     const assets = this.assets;
     return new Promise((resolve, reject) => {
-      loadTextAssets(assets, loader);
+      // loadTextAssets(assets, loader);
+
+      this.subjects.forEach(subject => subject.load(loader));
 
       loader.onComplete = () => {
         resolve();
@@ -63,12 +70,12 @@ export class App {
     });
   }
   initComposer() {
+    console.log("init");
     const renderPass = new RenderPass(this.scene, this.camera);
     this.waterEffect = new WaterEffect({ texture: this.touchTexture.texture });
-
     const waterPass = new EffectPass(this.camera, this.waterEffect);
-
     waterPass.renderToScreen = true;
+    renderPass.renderToScreen = false;
     this.composer.addPass(renderPass);
     this.composer.addPass(waterPass);
   }
@@ -76,55 +83,41 @@ export class App {
     this.touchTexture.initTexture();
     const assets = this.assets;
 
-    const textGeometry = createGeometry({
-      font: assets.font,
-      align: "center",
-      text: "AA"
-    });
-    const textMaterial = createTextMaterial(assets.glyphs);
-    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-    let scale = 0.4;
-    textMesh.scale.x = scale;
-    textMesh.scale.y = -scale;
-    textMesh.position.x = (-textGeometry.layout.width / 2) * scale;
-    textMesh.position.y = (-textGeometry.layout.xHeight / 2) * scale;
+    // const textGeometry2 = createGeometry({
+    //   font: assets.font,
+    //   align: "center",
+    //   width: 600,
+    //   text: Array.from({ length: 100 }, () => "water").join(" ")
+    // });
+    // const textMaterial2 = createTextMaterial(assets.glyphs, {
+    //   color: "rgba(20,20,20,1.0)"
+    // });
+    // const textMesh2 = new THREE.Mesh(textGeometry2, textMaterial2);
+    // scale = 0.1;
+    // console.log(textGeometry2.layout);
+    // textMesh2.scale.x = scale;
+    // textMesh2.scale.y = -scale;
+    // textMesh2.position.z += -0.1;
+    // textMesh2.position.x = (-textGeometry2.layout.width / 2) * scale;
+    // textMesh2.position.y =
+    //   (-textGeometry2.layout.height / 2) * scale +
+    //   (-textGeometry2.layout.lineHeight / 4) * scale;
+    // this.scene.add(textMesh2);
 
-    const textGeometry2 = createGeometry({
-      font: assets.font,
-      align: "center",
-      width: 600,
-      text: Array.from({ length: 100 }, () => "water").join(" ")
-    });
-    const textMaterial2 = createTextMaterial(assets.glyphs, {
-      color: "rgba(20,20,20,1.0)"
-    });
-    const textMesh2 = new THREE.Mesh(textGeometry2, textMaterial2);
-    scale = 0.1;
-    console.log(textGeometry2.layout);
-    textMesh2.scale.x = scale;
-    textMesh2.scale.y = -scale;
-    textMesh2.position.z += -0.1;
-    textMesh2.position.x = (-textGeometry2.layout.width / 2) * scale;
-    textMesh2.position.y =
-      (-textGeometry2.layout.height / 2) * scale +
-      (-textGeometry2.layout.lineHeight / 4) * scale;
-    this.scene.add(textMesh2);
-
-    this.scene.add(textMesh);
-
-    this.addHitPlane();
     this.initTextPlane();
+    this.addHitPlane();
+    this.subjects.forEach(subject => subject.init());
     this.initComposer();
+
+    // this.addImagePlane();
 
     this.tick();
 
     window.addEventListener("resize", this.onResize);
     window.addEventListener("mousemove", this.onMouseMove);
     window.addEventListener("touchmove", this.onTouchMove);
-    console.log("start");
   }
   onTouchMove(ev) {
-    console.log("move");
     const touch = ev.targetTouches[0];
     this.onMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
   }
@@ -136,34 +129,74 @@ export class App {
     };
     this.touchTexture.addTouch(this.mouse);
 
-    // raycaster.setFromCamera(this.mouse, this.camera);
+    raycaster.setFromCamera(
+      {
+        x: (ev.clientX / window.innerWidth) * 2 - 1,
+        y: -(ev.clientY / window.innerHeight) * 2 + 1
+      },
+      this.camera
+    );
     // var intersections = raycaster.intersectObjects(this.hitObjects);
     // if (intersections.length > 0) {
     //   const intersect = intersections[0];
     //   this.touchTexture.addTouch(intersect.uv);
     // }
+    this.subjects.forEach(subject => {
+      if (subject.onMouseMove) {
+        subject.onMouseMove(ev);
+      }
+    });
+  }
+  addImagePlane() {
+    const viewSize = this.getViewSize();
+
+    let width = viewSize.width / 4.5;
+
+    const geometry = new THREE.PlaneBufferGeometry(
+      width,
+      viewSize.height * 0.8,
+      1,
+      1
+    );
+    let x = -viewSize.width / 2 + width / 2 + viewSize.width / 5 / 1.5;
+
+    let space = (viewSize.width - (viewSize.width / 5 / 1.5) * 2 - width) / 2;
+    for (let i = 0; i < 3; i++) {
+      const material = new THREE.MeshBasicMaterial({ color: 0x484848 });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.x += x + i * space;
+      this.scene.add(mesh);
+    }
   }
   initTextPlane() {
     const viewSize = this.getViewSize();
 
     const geometry = new THREE.PlaneBufferGeometry(
-      viewSize.width / 2,
-      viewSize.height / 2,
+      viewSize.width,
+      viewSize.height,
       1,
       1
     );
     const material = new THREE.ShaderMaterial({
       uniforms: {
-        uMap: new THREE.Uniform(this.touchTexture.texture)
+        uMap: new THREE.Uniform(this.touchTexture.texture),
+        uLines: new THREE.Uniform(5),
+        uLineWidth: new THREE.Uniform(0.01),
+        uLineColor: new THREE.Uniform(new THREE.Color(0x202030))
       },
+      transparent: true,
       fragmentShader: `
         uniform sampler2D uMap;
+        uniform float uLines;
+        uniform float uLineWidth;
+        uniform vec3 uLineColor;
         varying vec2 vUv;
         void main(){
           vec3 color = vec3(1.);
-          vec4 tex = texture2D(uMap, vUv);
-          color = vec3(tex.rgb);
-          gl_FragColor = vec4(color,1.);
+          color = vec3(0.);
+          float line = step(0.5-uLineWidth/2.,fract(vUv.x * uLines)) - step(0.50 +uLineWidth/2.,fract(vUv.x * uLines));
+          color += line * uLineColor;
+          gl_FragColor = vec4(uLineColor,line);
         }
       `,
       vertexShader: `
@@ -177,6 +210,7 @@ export class App {
       `
     });
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.z = -0.001;
     this.scene.add(mesh);
   }
   addHitPlane() {
@@ -212,7 +246,6 @@ export class App {
 
     this.hitObjects.forEach(child => {
       if (child) {
-        console.log(child.material, child.geometry);
         if (child.material) child.material.dispose();
         if (child.geometry) child.geometry.dispose();
         // child.dispose();
@@ -222,14 +255,12 @@ export class App {
     this.scene.dispose();
     this.renderer.dispose();
     this.composer.dispose();
-    // console.log(this.renderer.info.memory);
-    // console.log(this.renderer.info.render);
-    // console.log(this.renderer.info.programs);
-
-    // alert("wait");
   }
   update() {
     this.touchTexture.update();
+    this.subjects.forEach(subject => {
+      subject.update();
+    });
   }
   render() {
     // this.renderer.render(this.scene, this.camera);
@@ -245,7 +276,10 @@ export class App {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
 
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+    this.subjects.forEach(subject => {
+      subject.onResize(window.innerWidth, window.innerHeight);
+    });
   }
 }
 
